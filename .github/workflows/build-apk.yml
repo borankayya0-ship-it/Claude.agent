@@ -1,9 +1,8 @@
-```html
 <!DOCTYPE html>
 <html lang="en" class="dark h-full">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>EngineX 3D Studio - Ultra Professional Game Engine</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -76,7 +75,6 @@
             border: 1px solid rgba(255, 255, 255, 0.05);
         }
 
-        /* Shader Grid Background */
         .bg-grid-pattern {
             background-size: 20px 20px;
             background-image: 
@@ -88,7 +86,6 @@
 <body class="bg-studio-bg text-gray-200 font-sans h-screen flex flex-col overflow-hidden select-none">
 
     <header class="h-12 bg-studio-header border-b border-studio-border flex items-center justify-between px-3 z-30 shrink-0">
-        <!-- Logo & Title -->
         <div class="flex items-center space-x-3">
             <div class="flex items-center space-x-2 text-studio-accent font-bold text-lg tracking-wider">
                 <i class="fa-solid fa-cube text-xl animate-pulse"></i>
@@ -97,163 +94,155 @@
             
             <div class="h-4 w-px bg-studio-border mx-2"></div>
             
-            <!-- Main Menu Buttons -->
             <div class="flex space-x-1 text-xs">
                 <button onclick="engine.createNewScene()" class="px-2.5 py-1 hover:bg-studio-active rounded transition flex items-center space-x-1"><i class="fa-solid fa-file text-gray-400"></i><span>New</span></button>
-                <button onclick="engine.openAddModal()" class="px-2.5 py-1 hover:bg-studio-active rounded transition flex items-center space-x-1"><i class="fa-solid fa-plus text-studio-accent"></i><span>Add Object</span></button>
-                <button onclick="engine.generateTerrainModal()" class="px-2.5 py-1 hover:bg-studio-active rounded transition flex items-center space-x-1"><i class="fa-solid fa-mountain text-emerald-400"></i><span>Terrain Engine</span></button>
-                <button onclick="engine.exportStandaloneGame()" class="px-2.5 py-1 hover:bg-studio-active rounded transition flex items-center space-x-1 text-amber-400 font-medium"><i class="fa-solid fa-download"></i><span>Export Executable</span></button>
+                <button onclick="engine.addPrimitive('cube')" class="px-2.5 py-1 hover:bg-studio-active rounded transition flex items-center space-x-1"><i class="fa-solid fa-plus text-studio-accent"></i><span>Add Object</span></button>
             </div>
         </div>
 
-        <!-- Engine Play / Pause Controls -->
         <div class="flex items-center space-x-2 bg-studio-bg px-2 py-1 rounded-lg border border-studio-border">
             <button id="btn-play" onclick="engine.togglePlayMode()" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-medium text-xs flex items-center space-x-1.5 transition shadow-lg shadow-emerald-900/30">
                 <i class="fa-solid fa-play"></i><span>PLAY GAME</span>
             </button>
-            <button id="btn-pause" onclick="engine.pauseGame()" class="px-2 py-1 bg-studio-panel hover:bg-studio-active text-gray-300 rounded text-xs transition disabled:opacity-40" disabled>
-                <i class="fa-solid fa-pause"></i>
-            </button>
-            <button id="btn-stop" onclick="engine.stopGame()" class="px-2 py-1 bg-red-600/20 hover:bg-red-600/40 text-red-400 rounded text-xs transition border border-red-500/30 disabled:opacity-40" disabled>
-                <i class="fa-solid fa-square"></i>
-            </button>
         </div>
 
-        <!-- Render Controls & Stats -->
         <div class="flex items-center space-x-4 text-xs font-mono">
-            <div class="flex items-center space-x-2">
-                <span class="text-gray-400">Shading:</span>
-                <select id="shading-mode-select" onchange="engine.setShadingMode(this.value)" class="bg-studio-input border border-studio-border rounded px-2 py-1 text-xs text-studio-accent focus:outline-none">
-                    <option value="lit">PBR Lit (Ultra)</option>
-                    <option value="wireframe">Wireframe</option>
-                    <option value="normals">Normal Maps Pass</option>
-                    <option value="unlit">Unlit Diffuse</option>
-                </select>
-            </div>
             <div class="flex items-center space-x-3 text-gray-400 border-l border-studio-border pl-3">
                 <span id="stat-fps" class="text-emerald-400 font-bold">60 FPS</span>
                 <span id="stat-poly" class="text-gray-300">0 Tris</span>
-                <span id="stat-dc" class="text-studio-accent">0 Calls</span>
             </div>
         </div>
     </header>
 
     <div class="flex-1 flex overflow-hidden">
-
-        <!-- LEFT PANEL: Scene Hierarchy & Object Spawner -->
         <aside class="w-64 bg-studio-panel border-r border-studio-border flex flex-col shrink-0">
-            <!-- Header -->
             <div class="h-9 border-b border-studio-border px-3 flex items-center justify-between text-xs font-semibold text-gray-300">
                 <span class="flex items-center space-x-1.5"><i class="fa-solid fa-sitemap text-studio-accent"></i><span>SCENE HIERARCHY</span></span>
-                <button onclick="engine.openAddModal()" class="hover:text-studio-accent"><i class="fa-solid fa-plus"></i></button>
             </div>
-
-            <!-- Search Filter -->
-            <div class="p-2 border-b border-studio-border">
-                <div class="relative">
-                    <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-2.5 text-gray-500 text-xs"></i>
-                    <input type="text" id="hierarchy-search" onkeyup="engine.filterHierarchy(this.value)" placeholder="Search scene objects..." class="w-full bg-studio-input border border-studio-border rounded pl-8 pr-2 py-1 text-xs focus:outline-none focus:border-studio-accent">
-                </div>
+            <div id="hierarchy-tree" class="flex-1 overflow-y-auto p-2 space-y-1 text-xs">
             </div>
-
-            <!-- Tree View List -->
-            <div id="hierarchy-tree" class="flex-1 overflow-y-auto p-1 space-y-0.5 text-xs">
-                <!-- Dynamically populated scene nodes -->
-            </div>
-
-            <!-- Quick Primitive Add Toolbar -->
             <div class="p-2 border-t border-studio-border bg-studio-bg/50">
                 <span class="text-[10px] text-gray-500 font-bold uppercase tracking-wider block mb-1">Quick Spawn</span>
                 <div class="grid grid-cols-4 gap-1">
                     <button onclick="engine.addPrimitive('cube')" title="Cube" class="p-2 bg-studio-panel border border-studio-border hover:border-studio-accent rounded text-center text-xs hover:text-studio-accent transition"><i class="fa-solid fa-cube"></i></button>
                     <button onclick="engine.addPrimitive('sphere')" title="Sphere" class="p-2 bg-studio-panel border border-studio-border hover:border-studio-accent rounded text-center text-xs hover:text-studio-accent transition"><i class="fa-solid fa-circle"></i></button>
                     <button onclick="engine.addPrimitive('cylinder')" title="Cylinder" class="p-2 bg-studio-panel border border-studio-border hover:border-studio-accent rounded text-center text-xs hover:text-studio-accent transition"><i class="fa-solid fa-database"></i></button>
-                    <button onclick="engine.addPrimitive('drone')" title="Sci-Fi Drone" class="p-2 bg-studio-panel border border-studio-border hover:border-studio-accent rounded text-center text-xs hover:text-studio-accent transition"><i class="fa-solid fa-robot text-studio-accent"></i></button>
-                    <button onclick="engine.addPrimitive('light')" title="Point Light" class="p-2 bg-studio-panel border border-studio-border hover:border-studio-accent rounded text-center text-xs hover:text-amber-400 transition"><i class="fa-solid fa-lightbulb text-amber-400"></i></button>
-                    <button onclick="engine.addPrimitive('particles')" title="Particle FX" class="p-2 bg-studio-panel border border-studio-border hover:border-studio-accent rounded text-center text-xs hover:text-cyan-400 transition"><i class="fa-solid fa-fire text-orange-400"></i></button>
-                    <button onclick="engine.addPrimitive('audio')" title="3D Spatial Audio Source" class="p-2 bg-studio-panel border border-studio-border hover:border-studio-accent rounded text-center text-xs hover:text-purple-400 transition"><i class="fa-solid fa-volume-high text-purple-400"></i></button>
-                    <button onclick="engine.addPrimitive('camera')" title="Game Camera" class="p-2 bg-studio-panel border border-studio-border hover:border-studio-accent rounded text-center text-xs hover:text-emerald-400 transition"><i class="fa-solid fa-video text-emerald-400"></i></button>
+                    <button onclick="engine.addPrimitive('light')" title="Light" class="p-2 bg-studio-panel border border-studio-border hover:border-studio-accent rounded text-center text-xs hover:text-amber-400 transition"><i class="fa-solid fa-lightbulb"></i></button>
                 </div>
             </div>
         </aside>
 
-        <!-- CENTER VIEWPORT & BOTTOM TOOL DOCK -->
         <main class="flex-1 flex flex-col relative overflow-hidden bg-black">
-
-            <!-- 3D Viewport Top Overlay Toolbar -->
-            <div class="absolute top-3 left-3 right-3 z-10 flex items-center justify-between pointer-events-none">
-                <!-- Transform Tool Controls -->
-                <div class="flex items-center space-x-1 bg-studio-panel/90 backdrop-blur border border-studio-border p-1 rounded-lg shadow-xl pointer-events-auto">
-                    <button id="gizmo-select" onclick="engine.setGizmoMode('select')" title="Select Tool (Q)" class="w-8 h-8 rounded flex items-center justify-center text-xs hover:bg-studio-active text-gray-300 active"><i class="fa-solid fa-hand-pointer"></i></button>
-                    <button id="gizmo-translate" onclick="engine.setGizmoMode('translate')" title="Translate (W)" class="w-8 h-8 rounded flex items-center justify-center text-xs hover:bg-studio-active text-studio-accent"><i class="fa-solid fa-arrows-up-down-left-right"></i></button>
-                    <button id="gizmo-rotate" onclick="engine.setGizmoMode('rotate')" title="Rotate (E)" class="w-8 h-8 rounded flex items-center justify-center text-xs hover:bg-studio-active text-gray-300"><i class="fa-solid fa-rotate"></i></button>
-                    <button id="gizmo-scale" onclick="engine.setGizmoMode('scale')" title="Scale (R)" class="w-8 h-8 rounded flex items-center justify-center text-xs hover:bg-studio-active text-gray-300"><i class="fa-solid fa-expand"></i></button>
-                    <div class="h-4 w-px bg-studio-border my-auto mx-1"></div>
-                    <button onclick="engine.toggleSnap()" id="btn-grid-snap" title="Toggle Grid Snap" class="w-8 h-8 rounded flex items-center justify-center text-xs hover:bg-studio-active text-gray-400"><i class="fa-solid fa-magnet"></i></button>
-                    <button onclick="engine.focusSelected()" title="Focus Frame (F)" class="w-8 h-8 rounded flex items-center justify-center text-xs hover:bg-studio-active text-gray-300"><i class="fa-solid fa-crosshairs"></i></button>
-                </div>
-
-                <!-- Camera Angle Preset Controls -->
-                <div class="flex items-center space-x-1 bg-studio-panel/90 backdrop-blur border border-studio-border p-1 rounded-lg shadow-xl pointer-events-auto font-mono text-xs">
-                    <button onclick="engine.setCameraView('perspective')" class="px-2 py-1 hover:bg-studio-active rounded text-studio-accent">3D Persp</button>
-                    <button onclick="engine.setCameraView('top')" class="px-2 py-1 hover:bg-studio-active rounded text-gray-400">Top</button>
-                    <button onclick="engine.setCameraView('front')" class="px-2 py-1 hover:bg-studio-active rounded text-gray-400">Front</button>
-                    <button onclick="engine.setCameraView('side')" class="px-2 py-1 hover:bg-studio-active rounded text-gray-400">Side</button>
-                </div>
-            </div>
-
             <div id="viewport-container" class="flex-1 w-full h-full relative">
                 <canvas id="webgl-canvas" class="w-full h-full block"></canvas>
-                
-                <!-- Game Mode In-Game HUD overlay (Visible during Play) -->
-                <div id="game-hud" class="hidden absolute inset-0 pointer-events-none p-6 flex flex-col justify-between">
-                    <div class="flex justify-between items-start">
-                        <div class="bg-black/60 backdrop-blur border border-studio-accent/40 px-4 py-2 rounded-lg text-studio-accent font-mono text-sm">
-                            <i class="fa-solid fa-crosshair mr-2"></i>GAME MODE ACTIVE [WASD + Mouse]
-                        </div>
-                        <div class="bg-black/60 backdrop-blur border border-white/10 px-4 py-2 rounded-lg text-xs font-mono text-gray-300">
-                            Press <kbd class="bg-studio-active px-1.5 py-0.5 rounded border border-studio-border text-studio-accent">ESC</kbd> to unlock cursor
-                        </div>
-                    </div>
-                    <!-- Crosshair -->
-                    <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
-                        <div class="w-2 h-2 rounded-full border border-studio-accent/80 bg-studio-accent/30"></div>
-                    </div>
+            </div>
+            <div class="h-48 bg-studio-panel border-t border-studio-border flex flex-col shrink-0 p-3">
+                <div class="text-xs font-semibold text-gray-400 mb-2">Engine Console Logs</div>
+                <div id="console-log" class="flex-1 bg-studio-bg border border-studio-border rounded p-2 font-mono text-xs text-emerald-400 overflow-y-auto">
+                    > EngineX 3D Studio Engine Initialized Successfully.<br>
+                    > Capacitor Mobile Native Bridge Ready.
                 </div>
             </div>
+        </main>
+    </div>
 
-            <div class="h-64 bg-studio-panel border-t border-studio-border flex flex-col shrink-0">
-                <!-- Dock Tabs Header -->
-                <div class="h-8 border-b border-studio-border bg-studio-header flex items-center justify-between px-2">
-                    <div class="flex space-x-1 text-xs">
-                        <button onclick="engine.switchTab('assets')" id="tab-assets" class="tab-btn active px-3 py-1.5 font-medium transition flex items-center space-x-1.5"><i class="fa-solid fa-folder-open"></i><span>Asset Browser</span></button>
-                        <button onclick="engine.switchTab('shaders')" id="tab-shaders" class="tab-btn px-3 py-1.5 font-medium text-gray-400 transition flex items-center space-x-1.5"><i class="fa-solid fa-diagram-project"></i><span>Node Shader Graph</span></button>
-                        <button onclick="engine.switchTab('script')" id="tab-script" class="tab-btn px-3 py-1.5 font-medium text-gray-400 transition flex items-center space-x-1.5"><i class="fa-solid fa-code"></i><span>Behavior Scripting</span></button>
-                        <button onclick="engine.switchTab('audio')" id="tab-audio" class="tab-btn px-3 py-1.5 font-medium text-gray-400 transition flex items-center space-x-1.5"><i class="fa-solid fa-wave-square"></i><span>Audio Synthesizer</span></button>
-                        <button onclick="engine.switchTab('console')" id="tab-console" class="tab-btn px-3 py-1.5 font-medium text-gray-400 transition flex items-center space-x-1.5"><i class="fa-solid fa-terminal"></i><span>Engine Log</span></button>
-                    </div>
-                    <div class="text-[10px] text-gray-500 font-mono">Dock Panel</div>
-                </div>
+    <!-- Engine Core Logic Engine -->
+    <script>
+        class EngineX {
+            constructor() {
+                this.objects = [];
+                this.initThree();
+                this.animate();
+            }
 
-                <!-- Dock Tab Contents -->
-                <div class="flex-1 overflow-hidden relative">
+            initThree() {
+                const canvas = document.getElementById('webgl-canvas');
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0x121215);
 
-                    <!-- Tab 1: Asset Browser & PBR Material Presets -->
-                    <div id="content-assets" class="absolute inset-0 p-3 overflow-y-auto grid grid-cols-6 gap-3">
-                        <!-- Preset Materials -->
-                        <div onclick="engine.applyMaterialPreset('gold')" class="p-3 bg-studio-bg border border-studio-border hover:border-studio-accent rounded-lg cursor-pointer transition flex flex-col items-center justify-center group">
-                            <div class="w-10 h-10 rounded-full bg-amber-400 shadow-lg shadow-amber-500/20 mb-2 group-hover:scale-110 transition"></div>
-                            <span class="text-xs font-medium text-gray-300">Gold PBR</span>
-                            <span class="text-[10px] text-gray-500">Physical Metallic</span>
-                        </div>
-                        <div onclick="engine.applyMaterialPreset('chrome')" class="p-3 bg-studio-bg border border-studio-border hover:border-studio-accent rounded-lg cursor-pointer transition flex flex-col items-center justify-center group">
-                            <div class="w-10 h-10 rounded-full bg-slate-300 shadow-lg shadow-slate-400/20 mb-2 group-hover:scale-110 transition"></div>
-                            <span class="text-xs font-medium text-gray-300">Chrome</span>
-                            <span class="text-[10px] text-gray-500">100% Reflection</span>
-                        </div>
-                        <div onclick="engine.applyMaterialPreset('glass')" class="p-3 bg-studio-bg border border-studio-border hover:border-studio-accent rounded-lg cursor-pointer transition flex flex-col items-center justify-center group">
-                            <div class="w-10 h-10 rounded-full bg-cyan-500/30 border border-cyan-400 mb-2 group-hover:scale-110 transition"></div>
-                            <span class="text-xs font-medium text-gray-300">Frosted Glass</span>
-                            <span class="text-[10px] text-gray-500">Refractive Glass</span>
-                        </div>
-                        <div onclick="engine.applyMaterialPreset('cyberpunk')" class="p-3 bg-studio-bg border border-studio-border hover:border-studio-accent rounded-lg cursor-pointer transition flex flex-co
+                this.camera = new THREE.PerspectiveCamera(60, canvas.clientWidth / canvas.clientHeight, 0.1, 1000);
+                this.camera.position.set(5, 5, 5);
+
+                this.renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+                this.renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+                this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+                this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+                
+                const gridHelper = new THREE.GridHelper(20, 20, 0x00f0ff, 0x2a2a34);
+                this.scene.add(gridHelper);
+
+                const light = new THREE.DirectionalLight(0xffffff, 1);
+                light.position.set(5, 10, 7);
+                this.scene.add(light);
+
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+                this.scene.add(ambientLight);
+
+                window.addEventListener('resize', () => this.onWindowResize());
+            }
+
+            addPrimitive(type) {
+                let geom, mat, mesh;
+                mat = new THREE.MeshStandardMaterial({ color: 0x00f0ff, roughness: 0.3, metalness: 0.8 });
+
+                if (type === 'cube') geom = new THREE.BoxGeometry(1, 1, 1);
+                else if (type === 'sphere') geom = new THREE.SphereGeometry(0.7, 32, 32);
+                else if (type === 'cylinder') geom = new THREE.CylinderGeometry(0.5, 0.5, 1, 32);
+                else if (type === 'light') {
+                    const pLight = new THREE.PointLight(0xffaa00, 2, 10);
+                    pLight.position.set(0, 2, 0);
+                    this.scene.add(pLight);
+                    this.log('Added Point Light to Scene');
+                    this.updateHierarchy('Point Light');
+                    return;
+                }
+
+                mesh = new THREE.Mesh(geom, mat);
+                mesh.position.y = 0.5;
+                this.scene.add(mesh);
+                this.objects.push(mesh);
+                this.log(`Added ${type.toUpperCase()} object`);
+                this.updateHierarchy(type.toUpperCase());
+            }
+
+            updateHierarchy(name) {
+                const tree = document.getElementById('hierarchy-tree');
+                const item = document.createElement('div');
+                item.className = 'p-1.5 bg-studio-bg rounded border border-studio-border flex items-center justify-between text-gray-300';
+                item.innerHTML = `<span><i class="fa-solid fa-cube text-studio-accent mr-2"></i>${name}</span>`;
+                tree.appendChild(item);
+            }
+
+            log(msg) {
+                const consoleEl = document.getElementById('console-log');
+                consoleEl.innerHTML += `<br>> ${msg}`;
+                consoleEl.scrollTop = consoleEl.scrollHeight;
+            }
+
+            onWindowResize() {
+                const canvas = document.getElementById('webgl-canvas');
+                this.camera.aspect = canvas.clientWidth / canvas.clientHeight;
+                this.camera.updateProjectionMatrix();
+                this.renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+            }
+
+            animate() {
+                requestAnimationFrame(() => this.animate());
+                this.controls.update();
+                this.renderer.render(this.scene, this.camera);
+            }
+
+            togglePlayMode() {
+                this.log('Launching Realtime Interactive Preview...');
+            }
+
+            createNewScene() {
+                location.reload();
+            }
+        }
+
+        const engine = new EngineX();
+    </script>
+</body>
+</html>
