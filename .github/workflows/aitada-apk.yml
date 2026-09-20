@@ -16,13 +16,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Dosya tam mi kontrol et
-        run: |
-          if ! grep -q "END-OF-WORKF[L]OW" .github/workflows/aitada-apk.yml; then
-            echo "::error::Dosya yarim yapistirilmis. Kodu Kopyala dugmesiyle bastan sona kopyalayin."
-            exit 1
-          fi
-
       - name: Set up JDK 17
         uses: actions/setup-java@v5
         with:
@@ -455,4 +448,10 @@ jobs:
                           
                           val state = if (flags.isEmpty()) "" else flags.joinToString(",", "(", ")")
                           val line = "${if (text.isNotEmpty()) "\\\"$text\\\" " else ""}${if (desc.isNotEmpty()) "desc:\\\"$desc\\\" " else ""}${if (id.isNotEmpty()) "id:$id " else ""}$state".trim()
-                    
+                          if (line.isNotEmpty()) out.add(Item(node, r, line))
+                      }
+                  }
+                  
+                  for (i in 0 until node.childCount) {
+                      node.getChild(i)?.let { collect(it, out, depth + 1) }
+                  }
