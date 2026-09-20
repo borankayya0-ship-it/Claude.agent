@@ -77,11 +77,7 @@ jobs:
                   ::-webkit-scrollbar-thumb { background: #2a2a34; border-radius: 3px; }
                   ::-webkit-scrollbar-thumb:hover { background: #3f3f50; }
                   .tab-btn.active { border-bottom: 2px solid #00f0ff; color: #00f0ff; background-color: rgba(0, 240, 255, 0.05); }
-                  .node-connector { width: 12px; height: 12px; border-radius: 50%; border: 2px solid #00f0ff; background: #1a1a20; cursor: crosshair; }
-                  .node-connector:hover { background: #00f0ff; box-shadow: 0 0 8px #00f0ff; }
                   canvas { outline: none; }
-                  .glass-panel { background: rgba(26, 26, 32, 0.85); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); }
-                  .bg-grid-pattern { background-size: 20px 20px; background-image: linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px), linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px); }
               </style>
           </head>
           <body class="bg-studio-bg text-gray-200 font-sans h-screen flex flex-col overflow-hidden select-none">
@@ -102,12 +98,6 @@ jobs:
                           <i class="fa-solid fa-play"></i><span>PLAY GAME</span>
                       </button>
                   </div>
-                  <div class="flex items-center space-x-4 text-xs font-mono">
-                      <div class="flex items-center space-x-3 text-gray-400 border-l border-studio-border pl-3">
-                          <span id="stat-fps" class="text-emerald-400 font-bold">60 FPS</span>
-                          <span id="stat-poly" class="text-gray-300">0 Tris</span>
-                      </div>
-                  </div>
               </header>
 
               <div class="flex-1 flex overflow-hidden">
@@ -116,15 +106,6 @@ jobs:
                           <span class="flex items-center space-x-1.5"><i class="fa-solid fa-sitemap text-studio-accent"></i><span>SCENE HIERARCHY</span></span>
                       </div>
                       <div id="hierarchy-tree" class="flex-1 overflow-y-auto p-2 space-y-1 text-xs"></div>
-                      <div class="p-2 border-t border-studio-border bg-studio-bg/50">
-                          <span class="text-[10px] text-gray-500 font-bold uppercase tracking-wider block mb-1">Quick Spawn</span>
-                          <div class="grid grid-cols-4 gap-1">
-                              <button onclick="engine.addPrimitive('cube')" title="Cube" class="p-2 bg-studio-panel border border-studio-border hover:border-studio-accent rounded text-center text-xs hover:text-studio-accent transition"><i class="fa-solid fa-cube"></i></button>
-                              <button onclick="engine.addPrimitive('sphere')" title="Sphere" class="p-2 bg-studio-panel border border-studio-border hover:border-studio-accent rounded text-center text-xs hover:text-studio-accent transition"><i class="fa-solid fa-circle"></i></button>
-                              <button onclick="engine.addPrimitive('cylinder')" title="Cylinder" class="p-2 bg-studio-panel border border-studio-border hover:border-studio-accent rounded text-center text-xs hover:text-studio-accent transition"><i class="fa-solid fa-database"></i></button>
-                              <button onclick="engine.addPrimitive('light')" title="Light" class="p-2 bg-studio-panel border border-studio-border hover:border-studio-accent rounded text-center text-xs hover:text-amber-400 transition"><i class="fa-solid fa-lightbulb"></i></button>
-                          </div>
-                      </div>
                   </aside>
 
                   <main class="flex-1 flex flex-col relative overflow-hidden bg-black">
@@ -173,14 +154,6 @@ jobs:
                           if (type === 'cube') geom = new THREE.BoxGeometry(1, 1, 1);
                           else if (type === 'sphere') geom = new THREE.SphereGeometry(0.7, 32, 32);
                           else if (type === 'cylinder') geom = new THREE.CylinderGeometry(0.5, 0.5, 1, 32);
-                          else if (type === 'light') {
-                              const pLight = new THREE.PointLight(0xffaa00, 2, 10);
-                              pLight.position.set(0, 2, 0);
-                              this.scene.add(pLight);
-                              this.log('Added Point Light to Scene');
-                              this.updateHierarchy('Point Light');
-                              return;
-                          }
                           mesh = new THREE.Mesh(geom, mat);
                           mesh.position.y = 0.5;
                           this.scene.add(mesh);
@@ -224,7 +197,7 @@ jobs:
         run: |
           npm init -y
           npm install @capacitor/core @capacitor/cli @capacitor/android
-          npx cap init "EngineX 3D Studio" "com.enginex3d.app" --web-dir www
+          npx cap init "EngineX3D" "com.enginex3d.app" --web-dir www
           npx cap add android
           npx cap sync android
 
@@ -232,7 +205,7 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug --info
 
       - name: Upload Generated APK Artifact
         uses: actions/upload-artifact@v4
