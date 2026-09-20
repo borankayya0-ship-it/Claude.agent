@@ -1,456 +1,259 @@
-name: Aitada APK Derle
+```html
+<!DOCTYPE html>
+<html lang="en" class="dark h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EngineX 3D Studio - Ultra Professional Game Engine</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        studio: {
+                            bg: '#121215',
+                            panel: '#1a1a20',
+                            border: '#2a2a34',
+                            header: '#22222b',
+                            accent: '#00f0ff',
+                            accentHover: '#00c8d6',
+                            active: '#2f3142',
+                            input: '#15151a'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        mono: ['Fira Code', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Three.js & Engine Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TransformControls.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
+    
+    <style>
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #121215; }
+        ::-webkit-scrollbar-thumb { background: #2a2a34; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #3f3f50; }
+        
+        .tab-btn.active {
+            border-bottom: 2px solid #00f0ff;
+            color: #00f0ff;
+            background-color: rgba(0, 240, 255, 0.05);
+        }
+        
+        .node-connector {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 2px solid #00f0ff;
+            background: #1a1a20;
+            cursor: crosshair;
+        }
+        
+        .node-connector:hover {
+            background: #00f0ff;
+            box-shadow: 0 0 8px #00f0ff;
+        }
 
-on:
-  push:
-    branches: ['**']
-  workflow_dispatch:
+        canvas { outline: none; }
+        
+        .glass-panel {
+            background: rgba(26, 26, 32, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
 
-permissions:
-  contents: write
+        /* Shader Grid Background */
+        .bg-grid-pattern {
+            background-size: 20px 20px;
+            background-image: 
+                linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+        }
+    </style>
+</head>
+<body class="bg-studio-bg text-gray-200 font-sans h-screen flex flex-col overflow-hidden select-none">
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+    <header class="h-12 bg-studio-header border-b border-studio-border flex items-center justify-between px-3 z-30 shrink-0">
+        <!-- Logo & Title -->
+        <div class="flex items-center space-x-3">
+            <div class="flex items-center space-x-2 text-studio-accent font-bold text-lg tracking-wider">
+                <i class="fa-solid fa-cube text-xl animate-pulse"></i>
+                <span>ENGINEX <span class="text-xs bg-studio-accent/20 text-studio-accent px-1.5 py-0.5 rounded border border-studio-accent/30 font-mono">3D ULTRA v4.5</span></span>
+            </div>
+            
+            <div class="h-4 w-px bg-studio-border mx-2"></div>
+            
+            <!-- Main Menu Buttons -->
+            <div class="flex space-x-1 text-xs">
+                <button onclick="engine.createNewScene()" class="px-2.5 py-1 hover:bg-studio-active rounded transition flex items-center space-x-1"><i class="fa-solid fa-file text-gray-400"></i><span>New</span></button>
+                <button onclick="engine.openAddModal()" class="px-2.5 py-1 hover:bg-studio-active rounded transition flex items-center space-x-1"><i class="fa-solid fa-plus text-studio-accent"></i><span>Add Object</span></button>
+                <button onclick="engine.generateTerrainModal()" class="px-2.5 py-1 hover:bg-studio-active rounded transition flex items-center space-x-1"><i class="fa-solid fa-mountain text-emerald-400"></i><span>Terrain Engine</span></button>
+                <button onclick="engine.exportStandaloneGame()" class="px-2.5 py-1 hover:bg-studio-active rounded transition flex items-center space-x-1 text-amber-400 font-medium"><i class="fa-solid fa-download"></i><span>Export Executable</span></button>
+            </div>
+        </div>
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
+        <!-- Engine Play / Pause Controls -->
+        <div class="flex items-center space-x-2 bg-studio-bg px-2 py-1 rounded-lg border border-studio-border">
+            <button id="btn-play" onclick="engine.togglePlayMode()" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-medium text-xs flex items-center space-x-1.5 transition shadow-lg shadow-emerald-900/30">
+                <i class="fa-solid fa-play"></i><span>PLAY GAME</span>
+            </button>
+            <button id="btn-pause" onclick="engine.pauseGame()" class="px-2 py-1 bg-studio-panel hover:bg-studio-active text-gray-300 rounded text-xs transition disabled:opacity-40" disabled>
+                <i class="fa-solid fa-pause"></i>
+            </button>
+            <button id="btn-stop" onclick="engine.stopGame()" class="px-2 py-1 bg-red-600/20 hover:bg-red-600/40 text-red-400 rounded text-xs transition border border-red-500/30 disabled:opacity-40" disabled>
+                <i class="fa-solid fa-square"></i>
+            </button>
+        </div>
 
-      - name: Prepare Android SDK
-        run: |
-          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-          yes | "$SDKM" --licenses > /dev/null || true
-          "$SDKM" "platforms;android-34" "build-tools;34.0.0" > /dev/null || true
+        <!-- Render Controls & Stats -->
+        <div class="flex items-center space-x-4 text-xs font-mono">
+            <div class="flex items-center space-x-2">
+                <span class="text-gray-400">Shading:</span>
+                <select id="shading-mode-select" onchange="engine.setShadingMode(this.value)" class="bg-studio-input border border-studio-border rounded px-2 py-1 text-xs text-studio-accent focus:outline-none">
+                    <option value="lit">PBR Lit (Ultra)</option>
+                    <option value="wireframe">Wireframe</option>
+                    <option value="normals">Normal Maps Pass</option>
+                    <option value="unlit">Unlit Diffuse</option>
+                </select>
+            </div>
+            <div class="flex items-center space-x-3 text-gray-400 border-l border-studio-border pl-3">
+                <span id="stat-fps" class="text-emerald-400 font-bold">60 FPS</span>
+                <span id="stat-poly" class="text-gray-300">0 Tris</span>
+                <span id="stat-dc" class="text-studio-accent">0 Calls</span>
+            </div>
+        </div>
+    </header>
 
-      - name: Generate project files
-        run: |
-          set -e
-          rm -rf app
-          D=app/src/main/java/com/aitada/agent
-          mkdir -p $D app/src/main/res/xml app/src/main/res/values
+    <div class="flex-1 flex overflow-hidden">
 
-          cat > settings.gradle << 'EOF'
-          pluginManagement {
-              repositories {
-                  google()
-                  mavenCentral()
-                  gradlePluginPortal()
-              }
-          }
-          dependencyResolutionManagement {
-              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
-          rootProject.name = "Aitada"
-          include(":app")
-          EOF
+        <!-- LEFT PANEL: Scene Hierarchy & Object Spawner -->
+        <aside class="w-64 bg-studio-panel border-r border-studio-border flex flex-col shrink-0">
+            <!-- Header -->
+            <div class="h-9 border-b border-studio-border px-3 flex items-center justify-between text-xs font-semibold text-gray-300">
+                <span class="flex items-center space-x-1.5"><i class="fa-solid fa-sitemap text-studio-accent"></i><span>SCENE HIERARCHY</span></span>
+                <button onclick="engine.openAddModal()" class="hover:text-studio-accent"><i class="fa-solid fa-plus"></i></button>
+            </div>
 
-          cat > build.gradle << 'EOF'
-          plugins {
-              id 'com.android.application' version '8.5.2' apply false
-              id 'org.jetbrains.kotlin.android' version '1.9.24' apply false
-          }
-          EOF
+            <!-- Search Filter -->
+            <div class="p-2 border-b border-studio-border">
+                <div class="relative">
+                    <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-2.5 text-gray-500 text-xs"></i>
+                    <input type="text" id="hierarchy-search" onkeyup="engine.filterHierarchy(this.value)" placeholder="Search scene objects..." class="w-full bg-studio-input border border-studio-border rounded pl-8 pr-2 py-1 text-xs focus:outline-none focus:border-studio-accent">
+                </div>
+            </div>
 
-          cat > gradlew << 'EOF'
-          #!/usr/bin/env sh
-          exec gradle "$@"
-          EOF
-          chmod +x gradlew
+            <!-- Tree View List -->
+            <div id="hierarchy-tree" class="flex-1 overflow-y-auto p-1 space-y-0.5 text-xs">
+                <!-- Dynamically populated scene nodes -->
+            </div>
 
-          echo "org.gradle.jvmargs=-Xmx3g -Dfile.encoding=UTF-8" > gradle.properties
-          echo "android.nonTransitiveRClass=true" >> gradle.properties
+            <!-- Quick Primitive Add Toolbar -->
+            <div class="p-2 border-t border-studio-border bg-studio-bg/50">
+                <span class="text-[10px] text-gray-500 font-bold uppercase tracking-wider block mb-1">Quick Spawn</span>
+                <div class="grid grid-cols-4 gap-1">
+                    <button onclick="engine.addPrimitive('cube')" title="Cube" class="p-2 bg-studio-panel border border-studio-border hover:border-studio-accent rounded text-center text-xs hover:text-studio-accent transition"><i class="fa-solid fa-cube"></i></button>
+                    <button onclick="engine.addPrimitive('sphere')" title="Sphere" class="p-2 bg-studio-panel border border-studio-border hover:border-studio-accent rounded text-center text-xs hover:text-studio-accent transition"><i class="fa-solid fa-circle"></i></button>
+                    <button onclick="engine.addPrimitive('cylinder')" title="Cylinder" class="p-2 bg-studio-panel border border-studio-border hover:border-studio-accent rounded text-center text-xs hover:text-studio-accent transition"><i class="fa-solid fa-database"></i></button>
+                    <button onclick="engine.addPrimitive('drone')" title="Sci-Fi Drone" class="p-2 bg-studio-panel border border-studio-border hover:border-studio-accent rounded text-center text-xs hover:text-studio-accent transition"><i class="fa-solid fa-robot text-studio-accent"></i></button>
+                    <button onclick="engine.addPrimitive('light')" title="Point Light" class="p-2 bg-studio-panel border border-studio-border hover:border-studio-accent rounded text-center text-xs hover:text-amber-400 transition"><i class="fa-solid fa-lightbulb text-amber-400"></i></button>
+                    <button onclick="engine.addPrimitive('particles')" title="Particle FX" class="p-2 bg-studio-panel border border-studio-border hover:border-studio-accent rounded text-center text-xs hover:text-cyan-400 transition"><i class="fa-solid fa-fire text-orange-400"></i></button>
+                    <button onclick="engine.addPrimitive('audio')" title="3D Spatial Audio Source" class="p-2 bg-studio-panel border border-studio-border hover:border-studio-accent rounded text-center text-xs hover:text-purple-400 transition"><i class="fa-solid fa-volume-high text-purple-400"></i></button>
+                    <button onclick="engine.addPrimitive('camera')" title="Game Camera" class="p-2 bg-studio-panel border border-studio-border hover:border-studio-accent rounded text-center text-xs hover:text-emerald-400 transition"><i class="fa-solid fa-video text-emerald-400"></i></button>
+                </div>
+            </div>
+        </aside>
 
-          cat > app/build.gradle << 'EOF'
-          plugins {
-              id 'com.android.application'
-              id 'org.jetbrains.kotlin.android'
-          }
-          android {
-              namespace 'com.aitada.agent'
-              compileSdk 34
-              defaultConfig {
-                  applicationId 'com.aitada.agent'
-                  minSdk 26
-                  targetSdk 34
-                  versionCode 1
-                  versionName '1.0'
-              }
-              compileOptions {
-                  sourceCompatibility JavaVersion.VERSION_17
-                  targetCompatibility JavaVersion.VERSION_17
-              }
-              kotlinOptions {
-                  jvmTarget = '17'
-              }
-          }
-          EOF
+        <!-- CENTER VIEWPORT & BOTTOM TOOL DOCK -->
+        <main class="flex-1 flex flex-col relative overflow-hidden bg-black">
 
-          cat > app/src/main/AndroidManifest.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <uses-permission android:name="android.permission.INTERNET" />
-              <queries>
-                  <intent>
-                      <action android:name="android.intent.action.MAIN" />
-                      <category android:name="android.intent.category.LAUNCHER" />
-                  </intent>
-              </queries>
-              <application
-                  android:allowBackup="false"
-                  android:icon="@android:drawable/sym_def_app_icon"
-                  android:label="Aitada"
-                  android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar"
-                  android:usesCleartextTraffic="true">
-                  <activity
-                      android:name=".MainActivity"
-                      android:exported="true"
-                      android:windowSoftInputMode="adjustResize">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN" />
-                          <category android:name="android.intent.category.LAUNCHER" />
-                      </intent-filter>
-                  </activity>
-                  <service
-                      android:name=".AgentService"
-                      android:exported="true"
-                      android:label="Aitada Ajan"
-                      android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-                      <intent-filter>
-                          <action android:name="android.accessibilityservice.AccessibilityService" />
-                      </intent-filter>
-                      <meta-data
-                          android:name="android.accessibilityservice"
-                          android:resource="@xml/accessibility_config" />
-                  </service>
-              </application>
-          </manifest>
-          EOF
+            <!-- 3D Viewport Top Overlay Toolbar -->
+            <div class="absolute top-3 left-3 right-3 z-10 flex items-center justify-between pointer-events-none">
+                <!-- Transform Tool Controls -->
+                <div class="flex items-center space-x-1 bg-studio-panel/90 backdrop-blur border border-studio-border p-1 rounded-lg shadow-xl pointer-events-auto">
+                    <button id="gizmo-select" onclick="engine.setGizmoMode('select')" title="Select Tool (Q)" class="w-8 h-8 rounded flex items-center justify-center text-xs hover:bg-studio-active text-gray-300 active"><i class="fa-solid fa-hand-pointer"></i></button>
+                    <button id="gizmo-translate" onclick="engine.setGizmoMode('translate')" title="Translate (W)" class="w-8 h-8 rounded flex items-center justify-center text-xs hover:bg-studio-active text-studio-accent"><i class="fa-solid fa-arrows-up-down-left-right"></i></button>
+                    <button id="gizmo-rotate" onclick="engine.setGizmoMode('rotate')" title="Rotate (E)" class="w-8 h-8 rounded flex items-center justify-center text-xs hover:bg-studio-active text-gray-300"><i class="fa-solid fa-rotate"></i></button>
+                    <button id="gizmo-scale" onclick="engine.setGizmoMode('scale')" title="Scale (R)" class="w-8 h-8 rounded flex items-center justify-center text-xs hover:bg-studio-active text-gray-300"><i class="fa-solid fa-expand"></i></button>
+                    <div class="h-4 w-px bg-studio-border my-auto mx-1"></div>
+                    <button onclick="engine.toggleSnap()" id="btn-grid-snap" title="Toggle Grid Snap" class="w-8 h-8 rounded flex items-center justify-center text-xs hover:bg-studio-active text-gray-400"><i class="fa-solid fa-magnet"></i></button>
+                    <button onclick="engine.focusSelected()" title="Focus Frame (F)" class="w-8 h-8 rounded flex items-center justify-center text-xs hover:bg-studio-active text-gray-300"><i class="fa-solid fa-crosshairs"></i></button>
+                </div>
 
-          cat > app/src/main/res/xml/accessibility_config.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
-              android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
-              android:accessibilityFeedbackType="feedbackGeneric"
-              android:accessibilityFlags="flagDefault|flagIncludeNotImportantViews|flagReportViewIds|flagRetrieveInteractiveWindows"
-              android:canPerformGestures="true"
-              android:canRetrieveWindowContent="true"
-              android:description="@string/service_description"
-              android:notificationTimeout="100"
-              android:settingsActivity="com.aitada.agent.MainActivity" />
-          EOF
+                <!-- Camera Angle Preset Controls -->
+                <div class="flex items-center space-x-1 bg-studio-panel/90 backdrop-blur border border-studio-border p-1 rounded-lg shadow-xl pointer-events-auto font-mono text-xs">
+                    <button onclick="engine.setCameraView('perspective')" class="px-2 py-1 hover:bg-studio-active rounded text-studio-accent">3D Persp</button>
+                    <button onclick="engine.setCameraView('top')" class="px-2 py-1 hover:bg-studio-active rounded text-gray-400">Top</button>
+                    <button onclick="engine.setCameraView('front')" class="px-2 py-1 hover:bg-studio-active rounded text-gray-400">Front</button>
+                    <button onclick="engine.setCameraView('side')" class="px-2 py-1 hover:bg-studio-active rounded text-gray-400">Side</button>
+                </div>
+            </div>
 
-          cat > app/src/main/res/values/strings.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <string name="service_description">Aitada, yapay zeka ajanının ekranı okumasına ve dokunmasına izin verir.</string>
-          </resources>
-          EOF
+            <div id="viewport-container" class="flex-1 w-full h-full relative">
+                <canvas id="webgl-canvas" class="w-full h-full block"></canvas>
+                
+                <!-- Game Mode In-Game HUD overlay (Visible during Play) -->
+                <div id="game-hud" class="hidden absolute inset-0 pointer-events-none p-6 flex flex-col justify-between">
+                    <div class="flex justify-between items-start">
+                        <div class="bg-black/60 backdrop-blur border border-studio-accent/40 px-4 py-2 rounded-lg text-studio-accent font-mono text-sm">
+                            <i class="fa-solid fa-crosshair mr-2"></i>GAME MODE ACTIVE [WASD + Mouse]
+                        </div>
+                        <div class="bg-black/60 backdrop-blur border border-white/10 px-4 py-2 rounded-lg text-xs font-mono text-gray-300">
+                            Press <kbd class="bg-studio-active px-1.5 py-0.5 rounded border border-studio-border text-studio-accent">ESC</kbd> to unlock cursor
+                        </div>
+                    </div>
+                    <!-- Crosshair -->
+                    <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div class="w-2 h-2 rounded-full border border-studio-accent/80 bg-studio-accent/30"></div>
+                    </div>
+                </div>
+            </div>
 
-          cat > $D/MainActivity.kt << 'EOF'
-          package com.aitada.agent
+            <div class="h-64 bg-studio-panel border-t border-studio-border flex flex-col shrink-0">
+                <!-- Dock Tabs Header -->
+                <div class="h-8 border-b border-studio-border bg-studio-header flex items-center justify-between px-2">
+                    <div class="flex space-x-1 text-xs">
+                        <button onclick="engine.switchTab('assets')" id="tab-assets" class="tab-btn active px-3 py-1.5 font-medium transition flex items-center space-x-1.5"><i class="fa-solid fa-folder-open"></i><span>Asset Browser</span></button>
+                        <button onclick="engine.switchTab('shaders')" id="tab-shaders" class="tab-btn px-3 py-1.5 font-medium text-gray-400 transition flex items-center space-x-1.5"><i class="fa-solid fa-diagram-project"></i><span>Node Shader Graph</span></button>
+                        <button onclick="engine.switchTab('script')" id="tab-script" class="tab-btn px-3 py-1.5 font-medium text-gray-400 transition flex items-center space-x-1.5"><i class="fa-solid fa-code"></i><span>Behavior Scripting</span></button>
+                        <button onclick="engine.switchTab('audio')" id="tab-audio" class="tab-btn px-3 py-1.5 font-medium text-gray-400 transition flex items-center space-x-1.5"><i class="fa-solid fa-wave-square"></i><span>Audio Synthesizer</span></button>
+                        <button onclick="engine.switchTab('console')" id="tab-console" class="tab-btn px-3 py-1.5 font-medium text-gray-400 transition flex items-center space-x-1.5"><i class="fa-solid fa-terminal"></i><span>Engine Log</span></button>
+                    </div>
+                    <div class="text-[10px] text-gray-500 font-mono">Dock Panel</div>
+                </div>
 
-          import android.app.Activity
-          import android.content.Intent
-          import android.os.Bundle
-          import android.provider.Settings
-          import android.widget.Button
-          import android.widget.LinearLayout
-          import android.widget.TextView
+                <!-- Dock Tab Contents -->
+                <div class="flex-1 overflow-hidden relative">
 
-          class MainActivity : Activity() {
-              override fun onCreate(savedInstanceState: Bundle?) {
-                  super.onCreate(savedInstanceState)
-                  val layout = LinearLayout(this).apply { 
-                      orientation = LinearLayout.VERTICAL 
-                      setPadding(50, 50, 50, 50)
-                  }
-                  
-                  val btn = Button(this).apply {
-                      text = "Erişilebilirlik İzinlerini Ver"
-                      setOnClickListener {
-                          startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-                      }
-                  }
-                  
-                  val status = TextView(this).apply {
-                      text = "Aitada Kurulumu Başarılı.\nYukarıdaki butona tıklayıp ayarlardan Aitada Ajan'ı aktif edebilirsiniz."
-                      textSize = 16f
-                      setPadding(0, 30, 0, 0)
-                  }
-                  
-                  layout.addView(btn)
-                  layout.addView(status)
-                  setContentView(layout)
-              }
-          }
-          EOF
-
-          cat > $D/App.kt << 'EOF'
-          package com.aitada.agent
-
-          import android.accessibilityservice.AccessibilityService
-          import android.content.Context
-          import android.content.Intent
-          import android.graphics.Color
-          import android.graphics.PixelFormat
-          import android.graphics.Rect
-          import android.os.Bundle
-          import android.os.Handler
-          import android.os.Looper
-          import android.view.Gravity
-          import android.view.WindowManager
-          import android.view.accessibility.AccessibilityEvent
-          import android.view.accessibility.AccessibilityNodeInfo
-          import android.widget.Button
-          import org.json.JSONArray
-          import org.json.JSONObject
-          import java.net.HttpURLConnection
-          import java.net.URL
-          import java.text.SimpleDateFormat
-          import java.util.Date
-          import java.util.Locale
-
-          data class AgentConfig(val url: String, val apiKey: String, val model: String)
-
-          object AgentBus {
-              @Volatile var service: AgentService? = null
-              @Volatile var running = false
-              @Volatile var listener: ((String) -> Unit)? = null
-              private val lock = Any()
-              private val buffer = StringBuilder()
-
-              fun log(message: String) {
-                  val stamp = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
-                  val line = "[$stamp] $message"
-                  synchronized(lock) {
-                      buffer.append(line).append('\n')
-                      if (buffer.length > 30000) buffer.delete(0, 10000)
-                  }
-                  listener?.invoke(line)
-              }
-          }
-
-          class LlmClient(private val cfg: AgentConfig) {
-              private val anthropic = cfg.url.contains("anthropic.com", true)
-
-              fun complete(system: String, user: String): String {
-                  val body = JSONObject().put("model", cfg.model)
-                  val userMsg = JSONObject().put("role", "user").put("content", user)
-                  if (anthropic) {
-                      body.put("max_tokens", 1024).put("system", system).put("messages", JSONArray().put(userMsg))
-                  } else {
-                      val sysMsg = JSONObject().put("role", "system").put("content", system)
-                      body.put("messages", JSONArray().put(sysMsg).put(userMsg))
-                  }
-                  var u = cfg.url.trim().trimEnd('/')
-                  if (!u.startsWith("http")) u = "https://$u"
-                  if (!u.endsWith("/chat/completions") && !u.endsWith("/messages")) {
-                      u += if (anthropic) (if (u.endsWith("/v1")) "/messages" else "/v1/messages") else "/chat/completions"
-                  }
-                  val c = URL(u).openConnection() as HttpURLConnection
-                  c.requestMethod = "POST"
-                  c.connectTimeout = 20000
-                  c.readTimeout = 90000
-                  c.doOutput = true
-                  c.setRequestProperty("Content-Type", "application/json")
-                  if (anthropic) {
-                      c.setRequestProperty("x-api-key", cfg.apiKey)
-                      c.setRequestProperty("anthropic-version", "2023-06-01")
-                  } else {
-                      c.setRequestProperty("Authorization", "Bearer " + cfg.apiKey)
-                  }
-                  try {
-                      c.outputStream.use { it.write(body.toString().toByteArray()) }
-                      val code = c.responseCode
-                      val text = (if (code in 200..299) c.inputStream else c.errorStream)
-                          ?.bufferedReader()?.use { it.readText() } ?: ""
-                      if (code !in 200..299) throw RuntimeException("HTTP $code: " + text.take(300))
-                      val j = JSONObject(text)
-                      if (anthropic) {
-                          val arr = j.getJSONArray("content")
-                          return (0 until arr.length()).joinToString("") { arr.getJSONObject(it).optString("text") }
-                      }
-                      val content = j.getJSONArray("choices").getJSONObject(0).getJSONObject("message").opt("content")
-                      if (content is JSONArray) {
-                          return (0 until content.length()).joinToString("") {
-                              content.optJSONObject(it)?.optString("text").orEmpty()
-                          }
-                      }
-                      return if (content is String) content else ""
-                  } finally {
-                      c.disconnect()
-                  }
-              }
-          }
-
-          class AgentService : AccessibilityService() {
-
-              private class Item(val node: AccessibilityNodeInfo, val rect: Rect, val line: String)
-
-              private val mainHandler = Handler(Looper.getMainLooper())
-              @Volatile private var stopRequested = false
-              @Volatile private var items: List<Item> = emptyList()
-              private var overlay: Button? = null
-
-              override fun onServiceConnected() {
-                  super.onServiceConnected()
-                  AgentBus.service = this
-                  AgentBus.log("Erişilebilirlik servisi bağlandı.")
-              }
-
-              override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
-
-              override fun onInterrupt() {}
-
-              override fun onUnbind(intent: Intent?): Boolean {
-                  stopRequested = true
-                  AgentBus.service = null
-                  return super.onUnbind(intent)
-              }
-
-              override fun onDestroy() {
-                  stopRequested = true
-                  AgentBus.service = null
-                  super.onDestroy()
-              }
-
-              fun startTask(task: String, cfg: AgentConfig) {
-                  if (AgentBus.running) return
-                  stopRequested = false
-                  AgentBus.running = true
-                  showOverlay()
-                  Thread({ runAgent(task, cfg) }, "aitada-agent").start()
-              }
-
-              fun stopTask() {
-                  stopRequested = true
-                  AgentBus.log("Durdurma isteği alındı.")
-              }
-
-              private fun runAgent(task: String, cfg: AgentConfig) {
-                  val client = LlmClient(cfg)
-                  val history = ArrayList<String>()
-                  var bad = 0
-                  AgentBus.log("Görev başladı: $task")
-                  try {
-                      for (step in 1..MAX_STEPS) {
-                          if (stopRequested) return
-                          val prompt = buildPrompt(task, step, history, captureScreen())
-                          val reply = ask(client, prompt) ?: return
-                          
-                          val action = parseAction(reply)
-                          if (action == null) {
-                              bad++
-                              if (bad >= 3) return
-                              history.add("Step $step: invalid reply, answer with ONE JSON object only")
-                              continue
-                          }
-                          bad = 0
-                          val type = action.optString("action").trim().lowercase()
-                          if (type == "done" || type == "fail") return
-                          
-                          val result = execute(type, action)
-                          val compact = JSONObject(action.toString()).apply { remove("thought") }
-                          history.add("Step $step: $compact -> $result")
-                          if (history.size > 12) history.removeAt(0)
-                          if (type != "wait") pause(1200)
-                      }
-                  } catch (e: Exception) {
-                      AgentBus.log("Beklenmeyen hata: " + e.message)
-                  } finally {
-                      AgentBus.running = false
-                      hideOverlay()
-                  }
-              }
-
-              private fun ask(client: LlmClient, prompt: String): String? {
-                  for (attempt in 1..3) {
-                      if (stopRequested) return null
-                      try {
-                          return client.complete(SYSTEM_PROMPT, prompt)
-                      } catch (e: Exception) {
-                          pause(2000L * attempt)
-                      }
-                  }
-                  return null
-              }
-
-              private fun parseAction(reply: String): JSONObject? {
-                  val start = reply.indexOf('{')
-                  val end = reply.lastIndexOf('}')
-                  if (start < 0 || end <= start) return null
-                  return try { JSONObject(reply.substring(start, end + 1)) } catch (e: Exception) { null }
-              }
-
-              private fun buildPrompt(task: String, step: Int, history: List<String>, screen: String): String {
-                  val sb = StringBuilder()
-                  sb.append("TASK: ").append(task).append("\n\nSTEP: ").append(step).append(" of ").append(MAX_STEPS)
-                  sb.append("\n\nPREVIOUS ACTIONS:\n")
-                  if (history.isEmpty()) sb.append("(none)\n") else history.forEach { sb.append(it).append('\n') }
-                  sb.append("\nCURRENT SCREEN:\n").append(screen).append("\nRespond with exactly one JSON object.")
-                  return sb.toString()
-              }
-
-              private fun captureScreen(): String {
-                  var root: AccessibilityNodeInfo? = null
-                  for (i in 1..5) {
-                      root = rootInActiveWindow
-                      if (root != null) break
-                      pause(400)
-                  }
-                  val list = ArrayList<Item>()
-                  val pkg = root?.packageName?.toString() ?: "unknown"
-                  if (root != null) collect(root, list, 0)
-                  items = list
-                  val dm = resources.displayMetrics
-                  val sb = StringBuilder()
-                  sb.append("Foreground app package: ").append(pkg).append('\n')
-                  sb.append("Screen size: ").append(dm.widthPixels).append('x').append(dm.heightPixels).append('\n')
-                  if (list.isEmpty()) sb.append("(no readable elements)\n")
-                  for (i in list.indices) sb.append('[').append(i).append("] ").append(list[i].line).append('\n')
-                  return sb.toString()
-              }
-
-              private fun collect(node: AccessibilityNodeInfo, out: MutableList<Item>, depth: Int) {
-                  if (out.size >= MAX_ELEMENTS || depth > 40 || !node.isVisibleToUser) return
-                  val text = if (node.isPassword) "" else node.text?.toString()?.trim().orEmpty()
-                  val desc = node.contentDescription?.toString()?.trim().orEmpty()
-                  val id = node.viewIdResourceName?.substringAfterLast('/').orEmpty()
-                  val interactive = node.isClickable || node.isLongClickable || node.isEditable ||
-                      node.isScrollable || node.isCheckable
-                  
-                  if (text.isNotEmpty() || desc.isNotEmpty() || interactive) {
-                      val r = Rect()
-                      node.getBoundsInScreen(r)
-                      if (r.width() > 0 && r.height() > 0) {
-                          val flags = ArrayList<String>()
-                          if (node.isClickable) flags.add("clickable")
-                          if (node.isLongClickable) flags.add("long_clickable")
-                          if (node.isEditable) flags.add("editable")
-                          if (node.isScrollable) flags.add("scrollable")
-                          if (node.isCheckable) flags.add("checkable")
-                          if (node.isChecked) flags.add("checked")
-                          
-                          val state = if (flags.isEmpty()) "" else flags.joinToString(",", "(", ")")
-                          val line = "${if (text.isNotEmpty()) "\\\"$text\\\" " else ""}${if (desc.isNotEmpty()) "desc:\\\"$desc\\\" " else ""}${if (id.isNotEmpty()) "id:$id " else ""}$state".trim()
-                          if (line.isNotEmpty()) out.add(Item(node, r, line))
-                      }
-                  }
-                  
-                  for (i in 0 until node.childCount) {
-                      node.getChild(i)?.let { collect(it, out, depth + 1) }
-                  }
-              }
-
-              private fun execute(type: String, action: JSONObject): String {
-                  val i
+                    <!-- Tab 1: Asset Browser & PBR Material Presets -->
+                    <div id="content-assets" class="absolute inset-0 p-3 overflow-y-auto grid grid-cols-6 gap-3">
+                        <!-- Preset Materials -->
+                        <div onclick="engine.applyMaterialPreset('gold')" class="p-3 bg-studio-bg border border-studio-border hover:border-studio-accent rounded-lg cursor-pointer transition flex flex-col items-center justify-center group">
+                            <div class="w-10 h-10 rounded-full bg-amber-400 shadow-lg shadow-amber-500/20 mb-2 group-hover:scale-110 transition"></div>
+                            <span class="text-xs font-medium text-gray-300">Gold PBR</span>
+                            <span class="text-[10px] text-gray-500">Physical Metallic</span>
+                        </div>
+                        <div onclick="engine.applyMaterialPreset('chrome')" class="p-3 bg-studio-bg border border-studio-border hover:border-studio-accent rounded-lg cursor-pointer transition flex flex-col items-center justify-center group">
+                            <div class="w-10 h-10 rounded-full bg-slate-300 shadow-lg shadow-slate-400/20 mb-2 group-hover:scale-110 transition"></div>
+                            <span class="text-xs font-medium text-gray-300">Chrome</span>
+                            <span class="text-[10px] text-gray-500">100% Reflection</span>
+                        </div>
+                        <div onclick="engine.applyMaterialPreset('glass')" class="p-3 bg-studio-bg border border-studio-border hover:border-studio-accent rounded-lg cursor-pointer transition flex flex-col items-center justify-center group">
+                            <div class="w-10 h-10 rounded-full bg-cyan-500/30 border border-cyan-400 mb-2 group-hover:scale-110 transition"></div>
+                            <span class="text-xs font-medium text-gray-300">Frosted Glass</span>
+                            <span class="text-[10px] text-gray-500">Refractive Glass</span>
+                        </div>
+                        <div onclick="engine.applyMaterialPreset('cyberpunk')" class="p-3 bg-studio-bg border border-studio-border hover:border-studio-accent rounded-lg cursor-pointer transition flex flex-co
