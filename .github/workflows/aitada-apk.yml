@@ -1,4 +1,4 @@
-name: Build Aitada APK
+name: Aitada APK Derle
 
 on:
   push:
@@ -10,14 +10,21 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+
+      - name: Dosya tam mi kontrol et
+        run: |
+          if ! grep -q "END-OF-WORKF[L]OW" .github/workflows/aitada-apk.yml; then
+            echo "::error::Dosya yarim yapistirilmis. Kodu Kopyala dugmesiyle bastan sona kopyalayin."
+            exit 1
+          fi
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -27,17 +34,20 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Accept Android SDK licenses
+      - name: Prepare Android SDK
         run: |
-          yes | sdkmanager --licenses > /dev/null || true
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKM" --licenses > /dev/null || true
+          "$SDKM" "platforms;android-34" "build-tools;34.0.0" > /dev/null || true
 
-      - name: Generate Gradle project
+      - name: Generate project files
         run: |
           set -e
-          P=aitada_build
-          mkdir -p $P/app/src/main/java/com/aitada/agent $P/app/src/main/res/xml $P/app/src/main/res/values
+          rm -rf app
+          D=app/src/main/java/com/aitada/agent
+          mkdir -p $D app/src/main/res/xml app/src/main/res/values
 
-          cat > $P/settings.gradle << 'EOF'
+          cat > settings.gradle << 'EOF'
           pluginManagement {
               repositories {
                   google()
@@ -56,29 +66,24 @@ jobs:
           include(":app")
           EOF
 
-          cat > $P/build.gradle << 'EOF'
+          cat > build.gradle << 'EOF'
           plugins {
               id 'com.android.application' version '8.5.2' apply false
               id 'org.jetbrains.kotlin.android' version '1.9.24' apply false
           }
           EOF
 
-          cat > $P/gradle.properties << 'EOF'
-          org.gradle.jvmargs=-Xmx3g -Dfile.encoding=UTF-8
-          android.nonTransitiveRClass=true
-          kotlin.code.style=official
-          EOF
+          echo "org.gradle.jvmargs=-Xmx3g -Dfile.encoding=UTF-8" > gradle.properties
+          echo "android.nonTransitiveRClass=true" >> gradle.properties
 
-          cat > $P/app/build.gradle << 'EOF'
+          cat > app/build.gradle << 'EOF'
           plugins {
               id 'com.android.application'
               id 'org.jetbrains.kotlin.android'
           }
-
           android {
               namespace 'com.aitada.agent'
               compileSdk 34
-
               defaultConfig {
                   applicationId 'com.aitada.agent'
                   minSdk 26
@@ -86,44 +91,32 @@ jobs:
                   versionCode 1
                   versionName '1.0'
               }
-
-              buildTypes {
-                  release {
-                      minifyEnabled false
-                  }
-              }
-
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_17
                   targetCompatibility JavaVersion.VERSION_17
               }
-
               kotlinOptions {
                   jvmTarget = '17'
               }
           }
           EOF
 
-          cat > $P/app/src/main/AndroidManifest.xml << 'EOF'
+          cat > app/src/main/AndroidManifest.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-
               <uses-permission android:name="android.permission.INTERNET" />
-
               <queries>
                   <intent>
                       <action android:name="android.intent.action.MAIN" />
                       <category android:name="android.intent.category.LAUNCHER" />
                   </intent>
               </queries>
-
               <application
                   android:allowBackup="false"
                   android:icon="@android:drawable/sym_def_app_icon"
                   android:label="Aitada"
                   android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar"
                   android:usesCleartextTraffic="true">
-
                   <activity
                       android:name=".MainActivity"
                       android:exported="true"
@@ -133,7 +126,6 @@ jobs:
                           <category android:name="android.intent.category.LAUNCHER" />
                       </intent-filter>
                   </activity>
-
                   <service
                       android:name=".AgentService"
                       android:exported="true"
@@ -150,7 +142,7 @@ jobs:
           </manifest>
           EOF
 
-          cat > $P/app/src/main/res/xml/accessibility_config.xml << 'EOF'
+          cat > app/src/main/res/xml/accessibility_config.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
               android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
@@ -163,32 +155,59 @@ jobs:
               android:settingsActivity="com.aitada.agent.MainActivity" />
           EOF
 
-          cat > $P/app/src/main/res/values/strings.xml << 'EOF'
+          cat > app/src/main/res/values/strings.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
               <string name="service_description">Aitada, yapay zeka ajanının ekranı okumasına ve dokunmasına izin verir.</string>
           </resources>
           EOF
 
-      - name: Generate Kotlin sources (bus and LLM client)
-        run: |
-          set -e
-          D=aitada_build/app/src/main/java/com/aitada/agent
-
-          cat > $D/AgentBus.kt << 'EOF'
+          cat > $D/App.kt << 'EOF'
           package com.aitada.agent
 
+          import android.accessibilityservice.AccessibilityService
+          import android.accessibilityservice.GestureDescription
+          import android.app.Activity
+          import android.content.Context
+          import android.content.Intent
+          import android.graphics.Color
+          import android.graphics.Path
+          import android.graphics.PixelFormat
+          import android.graphics.Rect
+          import android.graphics.Typeface
+          import android.net.Uri
+          import android.os.Bundle
+          import android.os.Handler
+          import android.os.Looper
+          import android.provider.Settings
+          import android.text.InputType
+          import android.view.Gravity
+          import android.view.View
+          import android.view.WindowManager
+          import android.view.accessibility.AccessibilityEvent
+          import android.view.accessibility.AccessibilityNodeInfo
+          import android.widget.Button
+          import android.widget.EditText
+          import android.widget.LinearLayout
+          import android.widget.ScrollView
+          import android.widget.TextView
+          import android.widget.Toast
+          import org.json.JSONArray
+          import org.json.JSONObject
+          import java.net.HttpURLConnection
+          import java.net.URL
           import java.text.SimpleDateFormat
           import java.util.Date
           import java.util.Locale
+          import java.util.concurrent.CountDownLatch
+          import java.util.concurrent.TimeUnit
 
           data class AgentConfig(val url: String, val apiKey: String, val model: String)
 
           object AgentBus {
               @Volatile var service: AgentService? = null
-              @Volatile var running: Boolean = false
+              @Volatile var running = false
               @Volatile var listener: ((String) -> Unit)? = null
-
               private val lock = Any()
               private val buffer = StringBuilder()
 
@@ -197,144 +216,74 @@ jobs:
                   val line = "[$stamp] $message"
                   synchronized(lock) {
                       buffer.append(line).append('\n')
-                      if (buffer.length > 30000) buffer.delete(0, buffer.length - 20000)
+                      if (buffer.length > 30000) buffer.delete(0, 10000)
                   }
                   listener?.invoke(line)
               }
 
               fun snapshot(): String = synchronized(lock) { buffer.toString() }
           }
-          EOF
-
-          cat > $D/LlmClient.kt << 'EOF'
-          package com.aitada.agent
-
-          import org.json.JSONArray
-          import org.json.JSONObject
-          import java.net.HttpURLConnection
-          import java.net.URL
 
           class LlmClient(private val cfg: AgentConfig) {
-
-              private val isAnthropic = cfg.url.contains("anthropic.com", ignoreCase = true)
+              private val anthropic = cfg.url.contains("anthropic.com", true)
 
               fun complete(system: String, user: String): String {
-                  val body = JSONObject()
-                  body.put("model", cfg.model)
-                  if (isAnthropic) {
-                      body.put("max_tokens", 1024)
-                      body.put("system", system)
-                      body.put("messages", JSONArray().put(JSONObject().put("role", "user").put("content", user)))
+                  val body = JSONObject().put("model", cfg.model)
+                  val userMsg = JSONObject().put("role", "user").put("content", user)
+                  if (anthropic) {
+                      body.put("max_tokens", 1024).put("system", system).put("messages", JSONArray().put(userMsg))
                   } else {
-                      body.put(
-                          "messages",
-                          JSONArray()
-                              .put(JSONObject().put("role", "system").put("content", system))
-                              .put(JSONObject().put("role", "user").put("content", user))
-                      )
+                      val sysMsg = JSONObject().put("role", "system").put("content", system)
+                      body.put("messages", JSONArray().put(sysMsg).put(userMsg))
                   }
-
-                  val conn = URL(buildEndpoint()).openConnection() as HttpURLConnection
-                  conn.requestMethod = "POST"
-                  conn.connectTimeout = 20000
-                  conn.readTimeout = 90000
-                  conn.doOutput = true
-                  conn.setRequestProperty("Content-Type", "application/json")
-                  if (isAnthropic) {
-                      conn.setRequestProperty("x-api-key", cfg.apiKey)
-                      conn.setRequestProperty("anthropic-version", "2023-06-01")
-                  } else {
-                      conn.setRequestProperty("Authorization", "Bearer " + cfg.apiKey)
-                  }
-
-                  try {
-                      conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
-                      val code = conn.responseCode
-                      val stream = if (code in 200..299) conn.inputStream else conn.errorStream
-                      val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
-                      if (code !in 200..299) throw RuntimeException("HTTP " + code + ": " + text.take(400))
-                      return parse(text)
-                  } finally {
-                      conn.disconnect()
-                  }
-              }
-
-              private fun buildEndpoint(): String {
                   var u = cfg.url.trim().trimEnd('/')
-                  if (!u.startsWith("http://") && !u.startsWith("https://")) u = "https://" + u
-                  if (u.endsWith("/chat/completions") || u.endsWith("/messages")) return u
-                  return if (isAnthropic) {
-                      if (u.endsWith("/v1")) u + "/messages" else u + "/v1/messages"
+                  if (!u.startsWith("http")) u = "https://$u"
+                  if (!u.endsWith("/chat/completions") && !u.endsWith("/messages")) {
+                      u += if (anthropic) (if (u.endsWith("/v1")) "/messages" else "/v1/messages") else "/chat/completions"
+                  }
+                  val c = URL(u).openConnection() as HttpURLConnection
+                  c.requestMethod = "POST"
+                  c.connectTimeout = 20000
+                  c.readTimeout = 90000
+                  c.doOutput = true
+                  c.setRequestProperty("Content-Type", "application/json")
+                  if (anthropic) {
+                      c.setRequestProperty("x-api-key", cfg.apiKey)
+                      c.setRequestProperty("anthropic-version", "2023-06-01")
                   } else {
-                      u + "/chat/completions"
+                      c.setRequestProperty("Authorization", "Bearer " + cfg.apiKey)
                   }
-              }
-
-              private fun parse(raw: String): String {
-                  val json = JSONObject(raw)
-                  if (isAnthropic) {
-                      val arr = json.getJSONArray("content")
-                      val sb = StringBuilder()
-                      for (i in 0 until arr.length()) {
-                          val part = arr.getJSONObject(i)
-                          if (part.optString("type") == "text") sb.append(part.optString("text"))
+                  try {
+                      c.outputStream.use { it.write(body.toString().toByteArray()) }
+                      val code = c.responseCode
+                      val text = (if (code in 200..299) c.inputStream else c.errorStream)
+                          ?.bufferedReader()?.use { it.readText() } ?: ""
+                      if (code !in 200..299) throw RuntimeException("HTTP $code: " + text.take(300))
+                      val j = JSONObject(text)
+                      if (anthropic) {
+                          val arr = j.getJSONArray("content")
+                          return (0 until arr.length()).joinToString("") { arr.getJSONObject(it).optString("text") }
                       }
-                      return sb.toString()
-                  }
-                  val msg = json.getJSONArray("choices").getJSONObject(0).getJSONObject("message")
-                  return when (val content = msg.opt("content")) {
-                      is String -> content
-                      is JSONArray -> {
-                          val sb = StringBuilder()
-                          for (i in 0 until content.length()) {
-                              sb.append(content.optJSONObject(i)?.optString("text").orEmpty())
+                      val content = j.getJSONArray("choices").getJSONObject(0).getJSONObject("message").opt("content")
+                      if (content is JSONArray) {
+                          return (0 until content.length()).joinToString("") {
+                              content.optJSONObject(it)?.optString("text").orEmpty()
                           }
-                          sb.toString()
                       }
-                      else -> ""
+                      return if (content is String) content else ""
+                  } finally {
+                      c.disconnect()
                   }
               }
           }
-          EOF
-
-      - name: Generate Kotlin sources (accessibility agent service)
-        run: |
-          set -e
-          D=aitada_build/app/src/main/java/com/aitada/agent
-
-          cat > $D/AgentService.kt << 'EOF'
-          package com.aitada.agent
-
-          import android.accessibilityservice.AccessibilityService
-          import android.accessibilityservice.GestureDescription
-          import android.content.Context
-          import android.content.Intent
-          import android.graphics.Color
-          import android.graphics.Path
-          import android.graphics.PixelFormat
-          import android.graphics.Rect
-          import android.os.Build
-          import android.os.Bundle
-          import android.os.Handler
-          import android.os.Looper
-          import android.view.Gravity
-          import android.view.View
-          import android.view.WindowManager
-          import android.view.accessibility.AccessibilityEvent
-          import android.view.accessibility.AccessibilityNodeInfo
-          import android.widget.Button
-          import org.json.JSONObject
-          import java.util.concurrent.CountDownLatch
-          import java.util.concurrent.TimeUnit
 
           class AgentService : AccessibilityService() {
 
-              private class UiItem(val node: AccessibilityNodeInfo, val bounds: Rect, val line: String)
+              private class Item(val node: AccessibilityNodeInfo, val rect: Rect, val line: String)
 
               private val mainHandler = Handler(Looper.getMainLooper())
-
               @Volatile private var stopRequested = false
-              @Volatile private var items: List<UiItem> = emptyList()
+              @Volatile private var items: List<Item> = emptyList()
               private var overlay: Button? = null
 
               override fun onServiceConnected() {
@@ -359,13 +308,8 @@ jobs:
                   super.onDestroy()
               }
 
-              // ---------- Görev yönetimi ----------
-
               fun startTask(task: String, cfg: AgentConfig) {
-                  if (AgentBus.running) {
-                      AgentBus.log("Zaten çalışan bir görev var.")
-                      return
-                  }
+                  if (AgentBus.running) return
                   stopRequested = false
                   AgentBus.running = true
                   showOverlay()
@@ -380,42 +324,39 @@ jobs:
               private fun runAgent(task: String, cfg: AgentConfig) {
                   val client = LlmClient(cfg)
                   val history = ArrayList<String>()
-                  var badReplies = 0
+                  var bad = 0
                   AgentBus.log("Görev başladı: $task")
                   try {
                       for (step in 1..MAX_STEPS) {
                           if (stopRequested) {
-                              AgentBus.log("Görev kullanıcı tarafından durduruldu.")
+                              AgentBus.log("Görev durduruldu.")
                               return
                           }
-                          val screen = captureScreen()
+                          val prompt = buildPrompt(task, step, history, captureScreen())
                           AgentBus.log("Adım $step/$MAX_STEPS: model yanıtı bekleniyor...")
-                          val reply = ask(client, buildPrompt(task, step, history, screen))
+                          val reply = ask(client, prompt)
                           if (reply == null) {
                               if (!stopRequested) AgentBus.log("Model yanıt veremedi, görev iptal edildi.")
                               return
                           }
                           val action = parseAction(reply)
                           if (action == null) {
-                              badReplies++
+                              bad++
                               AgentBus.log("Geçersiz model yanıtı: " + reply.take(160))
-                              if (badReplies >= 3) {
+                              if (bad >= 3) {
                                   AgentBus.log("Model art arda 3 kez geçersiz yanıt verdi, görev iptal edildi.")
                                   return
                               }
                               history.add("Step $step: invalid reply, answer with ONE JSON object only")
                               continue
                           }
-                          badReplies = 0
+                          bad = 0
                           val type = action.optString("action").trim().lowercase()
                           val thought = action.optString("thought").trim()
                           if (thought.isNotEmpty()) AgentBus.log("Düşünce: $thought")
-                          if (type == "done") {
-                              AgentBus.log("Görev tamamlandı: " + action.optString("message"))
-                              return
-                          }
-                          if (type == "fail") {
-                              AgentBus.log("Görev tamamlanamadı: " + action.optString("message"))
+                          if (type == "done" || type == "fail") {
+                              val label = if (type == "done") "Görev tamamlandı: " else "Görev tamamlanamadı: "
+                              AgentBus.log(label + action.optString("message"))
                               return
                           }
                           val result = execute(type, action)
@@ -464,16 +405,12 @@ jobs:
 
               private fun buildPrompt(task: String, step: Int, history: List<String>, screen: String): String {
                   val sb = StringBuilder()
-                  sb.append("TASK: ").append(task).append("\n\n")
-                  sb.append("STEP: ").append(step).append(" of ").append(MAX_STEPS).append("\n\n")
-                  sb.append("PREVIOUS ACTIONS:\n")
+                  sb.append("TASK: ").append(task).append("\n\nSTEP: ").append(step).append(" of ").append(MAX_STEPS)
+                  sb.append("\n\nPREVIOUS ACTIONS:\n")
                   if (history.isEmpty()) sb.append("(none)\n") else history.forEach { sb.append(it).append('\n') }
-                  sb.append("\nCURRENT SCREEN:\n").append(screen)
-                  sb.append("\nRespond with exactly one JSON object.")
+                  sb.append("\nCURRENT SCREEN:\n").append(screen).append("\nRespond with exactly one JSON object.")
                   return sb.toString()
               }
-
-              // ---------- Ekran okuma ----------
 
               private fun captureScreen(): String {
                   var root: AccessibilityNodeInfo? = null
@@ -482,10 +419,29 @@ jobs:
                       if (root != null) break
                       pause(400)
                   }
-                  val list = ArrayList<UiItem>()
+                  val list = ArrayList<Item>()
                   val pkg = root?.packageName?.toString() ?: "unknown"
                   if (root != null) collect(root, list, 0)
                   items = list
                   val dm = resources.displayMetrics
                   val sb = StringBuilder()
-                  sb.append
+                  sb.append("Foreground app package: ").append(pkg).append('\n')
+                  sb.append("Screen size: ").append(dm.widthPixels).append('x').append(dm.heightPixels).append('\n')
+                  if (list.isEmpty()) sb.append("(no readable elements)\n")
+                  for (i in list.indices) sb.append('[').append(i).append("] ").append(list[i].line).append('\n')
+                  return sb.toString()
+              }
+
+              private fun collect(node: AccessibilityNodeInfo, out: MutableList<Item>, depth: Int) {
+                  if (out.size >= MAX_ELEMENTS || depth > 40 || !node.isVisibleToUser) return
+                  val text = if (node.isPassword) "" else node.text?.toString()?.trim().orEmpty()
+                  val desc = node.contentDescription?.toString()?.trim().orEmpty()
+                  val id = node.viewIdResourceName?.substringAfterLast('/').orEmpty()
+                  val interactive = node.isClickable || node.isLongClickable || node.isEditable ||
+                      node.isScrollable || node.isCheckable
+                  if (text.isNotEmpty() || desc.isNotEmpty() || interactive) {
+                      val r = Rect()
+                      node.getBoundsInScreen(r)
+                      if (r.width() > 0 && r.height() > 0) {
+                          val flags = ArrayList<String>()
+                          if (node.isClickable) flags.add("cl
