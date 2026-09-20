@@ -73,6 +73,12 @@ jobs:
           }
           EOF
 
+          cat > gradlew << 'EOF'
+          #!/usr/bin/env sh
+          exec gradle "$@"
+          EOF
+          chmod +x gradlew
+
           echo "org.gradle.jvmargs=-Xmx3g -Dfile.encoding=UTF-8" > gradle.properties
           echo "android.nonTransitiveRClass=true" >> gradle.properties
 
@@ -162,36 +168,62 @@ jobs:
           </resources>
           EOF
 
+          cat > $D/MainActivity.kt << 'EOF'
+          package com.aitada.agent
+
+          import android.app.Activity
+          import android.content.Intent
+          import android.os.Bundle
+          import android.provider.Settings
+          import android.widget.Button
+          import android.widget.LinearLayout
+          import android.widget.TextView
+
+          class MainActivity : Activity() {
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  val layout = LinearLayout(this).apply { 
+                      orientation = LinearLayout.VERTICAL 
+                      setPadding(50, 50, 50, 50)
+                  }
+                  
+                  val btn = Button(this).apply {
+                      text = "Erişilebilirlik İzinlerini Ver"
+                      setOnClickListener {
+                          startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                      }
+                  }
+                  
+                  val status = TextView(this).apply {
+                      text = "Aitada Kurulumu Başarılı.\nYukarıdaki butona tıklayıp ayarlardan Aitada Ajan'ı aktif edebilirsiniz."
+                      textSize = 16f
+                      setPadding(0, 30, 0, 0)
+                  }
+                  
+                  layout.addView(btn)
+                  layout.addView(status)
+                  setContentView(layout)
+              }
+          }
+          EOF
+
           cat > $D/App.kt << 'EOF'
           package com.aitada.agent
 
           import android.accessibilityservice.AccessibilityService
-          import android.accessibilityservice.GestureDescription
-          import android.app.Activity
           import android.content.Context
           import android.content.Intent
           import android.graphics.Color
-          import android.graphics.Path
           import android.graphics.PixelFormat
           import android.graphics.Rect
-          import android.graphics.Typeface
-          import android.net.Uri
           import android.os.Bundle
           import android.os.Handler
           import android.os.Looper
-          import android.provider.Settings
-          import android.text.InputType
           import android.view.Gravity
-          import android.view.View
           import android.view.WindowManager
           import android.view.accessibility.AccessibilityEvent
           import android.view.accessibility.AccessibilityNodeInfo
           import android.widget.Button
-          import android.widget.EditText
-          import android.widget.LinearLayout
-          import android.widget.ScrollView
-          import android.widget.TextView
-          import android.widget.Toast
           import org.json.JSONArray
           import org.json.JSONObject
           import java.net.HttpURLConnection
@@ -199,8 +231,6 @@ jobs:
           import java.text.SimpleDateFormat
           import java.util.Date
           import java.util.Locale
-          import java.util.concurrent.CountDownLatch
-          import java.util.concurrent.TimeUnit
 
           data class AgentConfig(val url: String, val apiKey: String, val model: String)
 
@@ -220,8 +250,6 @@ jobs:
                   }
                   listener?.invoke(line)
               }
-
-              fun snapshot(): String = synchronized(lock) { buffer.toString() }
           }
 
           class LlmClient(private val cfg: AgentConfig) {
@@ -328,52 +356,32 @@ jobs:
                   AgentBus.log("Görev başladı: $task")
                   try {
                       for (step in 1..MAX_STEPS) {
-                          if (stopRequested) {
-                              AgentBus.log("Görev durduruldu.")
-                              return
-                          }
+                          if (stopRequested) return
                           val prompt = buildPrompt(task, step, history, captureScreen())
-                          AgentBus.log("Adım $step/$MAX_STEPS: model yanıtı bekleniyor...")
-                          val reply = ask(client, prompt)
-                          if (reply == null) {
-                              if (!stopRequested) AgentBus.log("Model yanıt veremedi, görev iptal edildi.")
-                              return
-                          }
+                          val reply = ask(client, prompt) ?: return
+                          
                           val action = parseAction(reply)
                           if (action == null) {
                               bad++
-                              AgentBus.log("Geçersiz model yanıtı: " + reply.take(160))
-                              if (bad >= 3) {
-                                  AgentBus.log("Model art arda 3 kez geçersiz yanıt verdi, görev iptal edildi.")
-                                  return
-                              }
+                              if (bad >= 3) return
                               history.add("Step $step: invalid reply, answer with ONE JSON object only")
                               continue
                           }
                           bad = 0
                           val type = action.optString("action").trim().lowercase()
-                          val thought = action.optString("thought").trim()
-                          if (thought.isNotEmpty()) AgentBus.log("Düşünce: $thought")
-                          if (type == "done" || type == "fail") {
-                              val label = if (type == "done") "Görev tamamlandı: " else "Görev tamamlanamadı: "
-                              AgentBus.log(label + action.optString("message"))
-                              return
-                          }
+                          if (type == "done" || type == "fail") return
+                          
                           val result = execute(type, action)
-                          val compact = JSONObject(action.toString())
-                          compact.remove("thought")
-                          AgentBus.log("Eylem: $compact -> $result")
+                          val compact = JSONObject(action.toString()).apply { remove("thought") }
                           history.add("Step $step: $compact -> $result")
                           if (history.size > 12) history.removeAt(0)
                           if (type != "wait") pause(1200)
                       }
-                      AgentBus.log("En yüksek adım sayısına ulaşıldı, görev durduruldu.")
                   } catch (e: Exception) {
                       AgentBus.log("Beklenmeyen hata: " + e.message)
                   } finally {
                       AgentBus.running = false
                       hideOverlay()
-                      AgentBus.log("Ajan durdu.")
                   }
               }
 
@@ -383,9 +391,6 @@ jobs:
                       try {
                           return client.complete(SYSTEM_PROMPT, prompt)
                       } catch (e: Exception) {
-                          val msg = e.message ?: e.javaClass.simpleName
-                          AgentBus.log("API hatası (deneme $attempt/3): $msg")
-                          if (msg.startsWith("HTTP 401") || msg.startsWith("HTTP 403") || msg.startsWith("HTTP 404")) return null
                           pause(2000L * attempt)
                       }
                   }
@@ -396,11 +401,7 @@ jobs:
                   val start = reply.indexOf('{')
                   val end = reply.lastIndexOf('}')
                   if (start < 0 || end <= start) return null
-                  return try {
-                      JSONObject(reply.substring(start, end + 1))
-                  } catch (e: Exception) {
-                      null
-                  }
+                  return try { JSONObject(reply.substring(start, end + 1)) } catch (e: Exception) { null }
               }
 
               private fun buildPrompt(task: String, step: Int, history: List<String>, screen: String): String {
@@ -439,9 +440,19 @@ jobs:
                   val id = node.viewIdResourceName?.substringAfterLast('/').orEmpty()
                   val interactive = node.isClickable || node.isLongClickable || node.isEditable ||
                       node.isScrollable || node.isCheckable
+                  
                   if (text.isNotEmpty() || desc.isNotEmpty() || interactive) {
                       val r = Rect()
                       node.getBoundsInScreen(r)
                       if (r.width() > 0 && r.height() > 0) {
                           val flags = ArrayList<String>()
-                          if (node.isClickable) flags.add("cl
+                          if (node.isClickable) flags.add("clickable")
+                          if (node.isLongClickable) flags.add("long_clickable")
+                          if (node.isEditable) flags.add("editable")
+                          if (node.isScrollable) flags.add("scrollable")
+                          if (node.isCheckable) flags.add("checkable")
+                          if (node.isChecked) flags.add("checked")
+                          
+                          val state = if (flags.isEmpty()) "" else flags.joinToString(",", "(", ")")
+                          val line = "${if (text.isNotEmpty()) "\\\"$text\\\" " else ""}${if (desc.isNotEmpty()) "desc:\\\"$desc\\\" " else ""}${if (id.isNotEmpty()) "id:$id " else ""}$state".trim()
+                    
