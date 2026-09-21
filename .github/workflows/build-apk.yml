@@ -1,215 +1,193 @@
+================================================================================
+1. DOSYA: .github/workflows/build-apk.yml
+================================================================================
 name: Build Android APK
 
 on:
   push:
-    branches: [ "main", "master" ]
-  workflow_dispatch:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
 
 jobs:
-  build-apk:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-      - name: Set up Java JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'zulu'
-          java-version: '17'
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: gradle
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
 
-      - name: Create Web App Directory & Inject Full Engine Code
-        run: |
-          mkdir -p www
-          cat << 'EOF' > www/index.html
-          <!DOCTYPE html>
-          <html lang="en" class="dark h-full">
-          <head>
-              <meta charset="UTF-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-              <title>EngineX 3D Studio - Ultra Professional Game Engine</title>
-              <!-- Tailwind CSS -->
-              <script src="https://cdn.tailwindcss.com"></script>
-              <script>
-                  tailwind.config = {
-                      darkMode: 'class',
-                      theme: {
-                          extend: {
-                              colors: {
-                                  studio: {
-                                      bg: '#121215',
-                                      panel: '#1a1a20',
-                                      border: '#2a2a34',
-                                      header: '#22222b',
-                                      accent: '#00f0ff',
-                                      accentHover: '#00c8d6',
-                                      active: '#2f3142',
-                                      input: '#15151a'
-                                  }
-                              },
-                              fontFamily: {
-                                  sans: ['Inter', 'system-ui', 'sans-serif'],
-                                  mono: ['Fira Code', 'monospace']
-                              }
-                          }
-                      }
-                  }
-              </script>
-              <!-- FontAwesome Icons -->
-              <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-              <!-- Google Fonts -->
-              <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-              <!-- Three.js & Engine Libraries -->
-              <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-              <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-              <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TransformControls.js"></script>
-              <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
-              
-              <style>
-                  ::-webkit-scrollbar { width: 6px; height: 6px; }
-                  ::-webkit-scrollbar-track { background: #121215; }
-                  ::-webkit-scrollbar-thumb { background: #2a2a34; border-radius: 3px; }
-                  ::-webkit-scrollbar-thumb:hover { background: #3f3f50; }
-                  .tab-btn.active { border-bottom: 2px solid #00f0ff; color: #00f0ff; background-color: rgba(0, 240, 255, 0.05); }
-                  canvas { outline: none; }
-              </style>
-          </head>
-          <body class="bg-studio-bg text-gray-200 font-sans h-screen flex flex-col overflow-hidden select-none">
-              <header class="h-12 bg-studio-header border-b border-studio-border flex items-center justify-between px-3 z-30 shrink-0">
-                  <div class="flex items-center space-x-3">
-                      <div class="flex items-center space-x-2 text-studio-accent font-bold text-lg tracking-wider">
-                          <i class="fa-solid fa-cube text-xl animate-pulse"></i>
-                          <span>ENGINEX <span class="text-xs bg-studio-accent/20 text-studio-accent px-1.5 py-0.5 rounded border border-studio-accent/30 font-mono">3D ULTRA v4.5</span></span>
-                      </div>
-                      <div class="h-4 w-px bg-studio-border mx-2"></div>
-                      <div class="flex space-x-1 text-xs">
-                          <button onclick="engine.createNewScene()" class="px-2.5 py-1 hover:bg-studio-active rounded transition flex items-center space-x-1"><i class="fa-solid fa-file text-gray-400"></i><span>New</span></button>
-                          <button onclick="engine.addPrimitive('cube')" class="px-2.5 py-1 hover:bg-studio-active rounded transition flex items-center space-x-1"><i class="fa-solid fa-plus text-studio-accent"></i><span>Add Object</span></button>
-                      </div>
-                  </div>
-                  <div class="flex items-center space-x-2 bg-studio-bg px-2 py-1 rounded-lg border border-studio-border">
-                      <button id="btn-play" onclick="engine.togglePlayMode()" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-medium text-xs flex items-center space-x-1.5 transition shadow-lg shadow-emerald-900/30">
-                          <i class="fa-solid fa-play"></i><span>PLAY GAME</span>
-                      </button>
-                  </div>
-              </header>
+    - name: Build Debug APK
+      run: ./gradlew assembleDebug
 
-              <div class="flex-1 flex overflow-hidden">
-                  <aside class="w-64 bg-studio-panel border-r border-studio-border flex flex-col shrink-0">
-                      <div class="h-9 border-b border-studio-border px-3 flex items-center justify-between text-xs font-semibold text-gray-300">
-                          <span class="flex items-center space-x-1.5"><i class="fa-solid fa-sitemap text-studio-accent"></i><span>SCENE HIERARCHY</span></span>
-                      </div>
-                      <div id="hierarchy-tree" class="flex-1 overflow-y-auto p-2 space-y-1 text-xs"></div>
-                  </aside>
+    - name: Upload APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-debug
+        path: app/build/outputs/apk/debug/app-debug.apk
 
-                  <main class="flex-1 flex flex-col relative overflow-hidden bg-black">
-                      <div id="viewport-container" class="flex-1 w-full h-full relative">
-                          <canvas id="webgl-canvas" class="w-full h-full block"></canvas>
-                      </div>
-                      <div class="h-48 bg-studio-panel border-t border-studio-border flex flex-col shrink-0 p-3">
-                          <div class="text-xs font-semibold text-gray-400 mb-2">Engine Console Logs</div>
-                          <div id="console-log" class="flex-1 bg-studio-bg border border-studio-border rounded p-2 font-mono text-xs text-emerald-400 overflow-y-auto">
-                              > EngineX 3D Studio Engine Initialized Successfully.<br>
-                              > Capacitor Mobile Native Bridge Ready.
-                          </div>
-                      </div>
-                  </main>
-              </div>
+================================================================================
+2. DOSYA: app/src/main/java/com/example/threedapp/MainActivity.kt
+================================================================================
+package com.example.threedapp
 
-              <script>
-                  class EngineX {
-                      constructor() {
-                          this.objects = [];
-                          this.initThree();
-                          this.animate();
-                      }
-                      initThree() {
-                          const canvas = document.getElementById('webgl-canvas');
-                          this.scene = new THREE.Scene();
-                          this.scene.background = new THREE.Color(0x121215);
-                          this.camera = new THREE.PerspectiveCamera(60, canvas.clientWidth / canvas.clientHeight, 0.1, 1000);
-                          this.camera.position.set(5, 5, 5);
-                          this.renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
-                          this.renderer.setSize(canvas.clientWidth, canvas.clientHeight);
-                          this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-                          this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
-                          const gridHelper = new THREE.GridHelper(20, 20, 0x00f0ff, 0x2a2a34);
-                          this.scene.add(gridHelper);
-                          const light = new THREE.DirectionalLight(0xffffff, 1);
-                          light.position.set(5, 10, 7);
-                          this.scene.add(light);
-                          const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
-                          this.scene.add(ambientLight);
-                          window.addEventListener('resize', () => this.onWindowResize());
-                      }
-                      addPrimitive(type) {
-                          let geom, mat, mesh;
-                          mat = new THREE.MeshStandardMaterial({ color: 0x00f0ff, roughness: 0.3, metalness: 0.8 });
-                          if (type === 'cube') geom = new THREE.BoxGeometry(1, 1, 1);
-                          else if (type === 'sphere') geom = new THREE.SphereGeometry(0.7, 32, 32);
-                          else if (type === 'cylinder') geom = new THREE.CylinderGeometry(0.5, 0.5, 1, 32);
-                          mesh = new THREE.Mesh(geom, mat);
-                          mesh.position.y = 0.5;
-                          this.scene.add(mesh);
-                          this.objects.push(mesh);
-                          this.log(`Added ${type.toUpperCase()} object`);
-                          this.updateHierarchy(type.toUpperCase());
-                      }
-                      updateHierarchy(name) {
-                          const tree = document.getElementById('hierarchy-tree');
-                          const item = document.createElement('div');
-                          item.className = 'p-1.5 bg-studio-bg rounded border border-studio-border flex items-center justify-between text-gray-300';
-                          item.innerHTML = `<span><i class="fa-solid fa-cube text-studio-accent mr-2"></i>${name}</span>`;
-                          tree.appendChild(item);
-                      }
-                      log(msg) {
-                          const consoleEl = document.getElementById('console-log');
-                          consoleEl.innerHTML += `<br>> ${msg}`;
-                          consoleEl.scrollTop = consoleEl.scrollHeight;
-                      }
-                      onWindowResize() {
-                          const canvas = document.getElementById('webgl-canvas');
-                          this.camera.aspect = canvas.clientWidth / canvas.clientHeight;
-                          this.camera.updateProjectionMatrix();
-                          this.renderer.setSize(canvas.clientWidth, canvas.clientHeight);
-                      }
-                      animate() {
-                          requestAnimationFrame(() => this.animate());
-                          this.controls.update();
-                          this.renderer.render(this.scene, this.camera);
-                      }
-                      togglePlayMode() { this.log('Launching Realtime Interactive Preview...'); }
-                      createNewScene() { location.reload(); }
-                  }
-                  const engine = new EngineX();
-              </script>
-          </body>
-          </html>
-          EOF
+import android.content.Context
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.os.Bundle
+import android.view.MotionEvent
+import android.view.View
+import androidx.appcompat.app.AppCompatActivity
+import kotlin.math.cos
+import kotlin.math.sin
 
-      - name: Package App into Capacitor Project
-        run: |
-          npm init -y
-          npm install @capacitor/core @capacitor/cli @capacitor/android
-          npx cap init "EngineX3D" "com.enginex3d.app" --web-dir www
-          npx cap add android
-          npx cap sync android
+class MainActivity : AppCompatActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(Cube3DView(this))
+    }
+}
 
-      - name: Build Android Debug APK
-        run: |
-          cd android
-          chmod +x gradlew
-          ./gradlew assembleDebug --info
+class Cube3DView(context: Context) : View(context) {
+    private val paint = Paint().apply {
+        color = Color.GREEN
+        strokeWidth = 6f
+        style = Paint.Style.STROKE
+        isAntiAlias = true
+    }
 
-      - name: Upload Generated APK Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: EngineX-3D-Studio-APK
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-          
+    private var angleX = 0.0
+    private var angleY = 0.0
+    private var previousX = 0f
+    private var previousY = 0f
+
+    // 3D Küp Noktaları
+    private val vertices = arrayOf(
+        doubleArrayOf(-1.0, -1.0, -1.0), doubleArrayOf(1.0, -1.0, -1.0),
+        doubleArrayOf(1.0, 1.0, -1.0), doubleArrayOf(-1.0, 1.0, -1.0),
+        doubleArrayOf(-1.0, -1.0, 1.0), doubleArrayOf(1.0, -1.0, 1.0),
+        doubleArrayOf(1.0, 1.0, 1.0), doubleArrayOf(-1.0, 1.0, 1.0)
+    )
+
+    private val edges = arrayOf(
+        intArrayOf(0, 1), intArrayOf(1, 2), intArrayOf(2, 3), intArrayOf(3, 0),
+        intArrayOf(4, 5), intArrayOf(5, 6), intArrayOf(6, 7), intArrayOf(7, 4),
+        intArrayOf(0, 4), intArrayOf(1, 5), intArrayOf(2, 6), intArrayOf(3, 7)
+    )
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        canvas.drawColor(Color.BLACK)
+
+        val width = width.toDouble()
+        val height = height.toDouble()
+        val scale = width / 3.5
+
+        val projected = Array(8) { DoubleArray(2) }
+
+        for (i in vertices.indices) {
+            val v = vertices[i]
+            var y = v[1] * cos(angleX) - v[2] * sin(angleX)
+            var z = v[1] * sin(angleX) + v[2] * cos(angleX)
+            var x = v[0]
+
+            val x2 = x * cos(angleY) + z * sin(angleY)
+            z = -x * sin(angleY) + z * cos(angleY)
+            x = x2
+
+            val distance = 3.0
+            val fov = scale / (z + distance)
+
+            projected[i][0] = x * fov + width / 2
+            projected[i][1] = y * fov + height / 2
+        }
+
+        for (edge in edges) {
+            val start = projected[edge[0]]
+            val end = projected[edge[1]]
+            canvas.drawLine(start[0].toFloat(), start[1].toFloat(), end[0].toFloat(), end[1].toFloat(), paint)
+        }
+    }
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        val x = event.x
+        val y = event.y
+        if (event.action == MotionEvent.ACTION_MOVE) {
+            angleY += (x - previousX) * 0.01
+            angleX -= (y - previousY) * 0.01
+            invalidate()
+        }
+        previousX = x
+        previousY = y
+        return true
+    }
+}
+
+================================================================================
+3. DOSYA: app/src/main/AndroidManifest.xml
+================================================================================
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.threedapp">
+
+    <application
+        android:allowBackup="true"
+        android:label="3D Model App"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.AppCompat.Light.NoActionBar">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>
+
+================================================================================
+4. DOSYA: app/build.gradle
+================================================================================
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'com.example.threedapp'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.example.threedapp"
+        minSdk 21
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+}
